@@ -187,3 +187,8 @@ this release should add its entry under the appropriate section below.
   Verified from a clean `docker compose down -v && up -d && scripts/seed.sh`: the seed produces
   the same channels and payments, the rune healthcheck still passes, and invoice creation
   through RTL's CLN API returns 201 with and without an expiry. No RTL code changes.
+
+## Paperclip fork additions
+
+- Experimental Sideflash verification and direct payment through the matching CLN plugin, with explicit fee caps and persisted retry labels.
+- CLN send dialog: wrapping payment-method choices, accessible errors and progress, and a maximum-debit review. Existing Invoice, Offer and Keysend handling is preserved.

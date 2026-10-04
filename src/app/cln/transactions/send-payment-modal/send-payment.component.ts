@@ -51,6 +51,13 @@ export class CLNLightningSendPaymentsComponent implements OnInit, OnDestroy {
   public convertedCurrency: ConvertedCurrency = null;
   public paymentTypes = PaymentTypes;
   public paymentType = PaymentTypes.INVOICE;
+  public sideflashAddress = '';
+  public sideflashAmount: number | null = null;
+  public sideflashFee = 100;
+  public sideflashPreview: any = null;
+  public sideflashBusy = false;
+  private sideflashIntentKey = '';
+
   public selNode: Node | null;
   public offerDecoded: OfferRequest = {};
   public offerRequest = '';
@@ -129,6 +136,7 @@ export class CLNLightningSendPaymentsComponent implements OnInit, OnDestroy {
       filter((action) => action.type === CLNActions.UPDATE_API_CALL_STATUS_CLN || action.type === CLNActions.SEND_PAYMENT_STATUS_CLN || action.type === CLNActions.SET_OFFER_INVOICE_CLN)).
       subscribe((action: any) => {
         if (action.type === CLNActions.SEND_PAYMENT_STATUS_CLN) {
+          if (this.sideflashIntentKey) { localStorage.removeItem(this.sideflashIntentKey); }
           this.dialogRef.close();
         }
         // The actions stream is app-wide: act only on the reply to this dialog's own pending fetch.
@@ -154,6 +162,7 @@ export class CLNLightningSendPaymentsComponent implements OnInit, OnDestroy {
             this.offerInvoiceFetchPending = false;
           }
           if (action.payload.action === 'SendPayment') {
+            this.sideflashBusy = false;
             delete this.paymentDecoded.amount_msat;
             this.paymentError = action.payload.message;
           }
@@ -180,6 +189,10 @@ export class CLNLightningSendPaymentsComponent implements OnInit, OnDestroy {
   }
 
   onSendPayment(): boolean | void {
+    if (this.paymentType === PaymentTypes.SIDEFLASH) {
+      this.sendSideflash();
+      return;
+    }
     switch (this.paymentType) {
       case PaymentTypes.KEYSEND:
         if (!this.pubkey || this.pubkey.trim() === '' || !this.keysendAmount || this.keysendAmount <= 0) { return true; }
@@ -237,6 +250,56 @@ export class CLNLightningSendPaymentsComponent implements OnInit, OnDestroy {
       default:
         break;
     }
+  }
+
+  onSideflashChange() {
+    this.sideflashPreview = null;
+    this.paymentError = '';
+  }
+
+  sendSideflash() {
+    if (this.sideflashBusy) { return; }
+    const address = this.sideflashAddress.trim();
+    const amount = Number(this.sideflashAmount),
+      fee = Number(this.sideflashFee);
+    if (!(/^sfl1/i).test(address) || address.length > 1023 || !Number.isSafeInteger(amount * 1000) || amount <= 0 ||
+      !Number.isInteger(amount) || this.sideflashFee === null || !Number.isSafeInteger(fee * 1000) || fee < 0 || !Number.isInteger(fee)) {
+      this.paymentError = 'Enter a Sideflash address, a positive whole-sat amount, and a whole-sat maximum routing fee.';
+      return;
+    }
+    this.paymentError = '';
+    this.sideflashBusy = true;
+    if (!this.sideflashPreview || this.sideflashPreview.address !== address) {
+      this.dataService.decodePayment(address, true).pipe(takeUntil(this.unSubs[9])).subscribe({
+        next: (decoded: any) => {
+          this.sideflashBusy = false;
+          if (address !== this.sideflashAddress.trim()) { return; }
+          if (decoded.type !== 'sideflash' || decoded.binding_verified !== true || decoded.valid !== true) {
+            this.paymentError = 'The connected CLN node did not verify this Sideflash address.';
+            return;
+          }
+          this.sideflashPreview = { ...decoded, address };
+        },
+        error: (err) => { this.sideflashBusy = false; this.paymentError = err.message; }
+      });
+      return;
+    }
+    // Persist before submitting, so a lost HTTP response or reload cannot create a second payment.
+    this.sideflashIntentKey = 'rtl-sideflash:' + JSON.stringify([this.selNode.index, address, amount, fee]);
+    let label: string;
+    try {
+      label = localStorage.getItem(this.sideflashIntentKey);
+      if (!label) {
+        label = 'rtl-' + Array.from(crypto.getRandomValues(new Uint8Array(16))).map((v) => v.toString(16).padStart(2, '0')).join('');
+        localStorage.setItem(this.sideflashIntentKey, label);
+      }
+    } catch (_) {
+      this.sideflashBusy = false;
+      this.paymentError = 'Browser storage must be available to preserve the payment ID safely.';
+      return;
+    }
+    this.store.dispatch(sendPayment({ payload: { uiMessage: UI_MESSAGES.SEND_PAYMENT, paymentType: PaymentTypes.SIDEFLASH,
+      bolt11: address, amount_msat: amount * 1000, maxfee: fee * 1000, label, fromDialog: true } }));
   }
 
   keysendPayment() {
@@ -424,6 +487,10 @@ export class CLNLightningSendPaymentsComponent implements OnInit, OnDestroy {
   }
 
   resetData() {
+    if (this.sideflashBusy) { return; }
+    this.sideflashAddress = '';
+    this.sideflashAmount = null;
+    this.sideflashPreview = null;
     switch (this.paymentType) {
       case PaymentTypes.KEYSEND:
         this.pubkey = '';
