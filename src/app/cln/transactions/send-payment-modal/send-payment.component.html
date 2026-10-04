@@ -7,20 +7,21 @@
       <button tabindex="12" fxLayoutAlign="center center" class="btn-close-x p-0" default mat-button [mat-dialog-close]="false">X</button>
     </mat-card-header>
     <mat-card-content class="padding-gap-x-large" fxLayout="column" fxLayoutAlign="start stretch">
-      <mat-radio-group class="my-1" color="primary" name="paymentType" fxFlex="100" fxLayoutAlign="start start" [(ngModel)]="paymentType" (change)="onPaymentTypeChange()">
+      <mat-radio-group class="my-1" color="primary" name="paymentType" fxFlex="100" fxLayoutAlign="start start" [disabled]="sideflashBusy" [(ngModel)]="paymentType" (change)="onPaymentTypeChange()">
         <mat-radio-button value="{{paymentTypes.INVOICE}}" fxFlex="20" tabindex="1">Invoice</mat-radio-button>
         <mat-radio-button value="{{paymentTypes.KEYSEND}}" fxFlex="20" tabindex="2">Keysend</mat-radio-button>
         <mat-radio-button *ngIf="selNode.settings.enableOffers" value="{{paymentTypes.OFFER}}" fxFlex="20" tabindex="3">Offer</mat-radio-button>
+      <mat-radio-button value="{{paymentTypes.SIDEFLASH}}" fxFlex="25">Sideflash</mat-radio-button>
       </mat-radio-group>
       <form #sendPaymentForm="ngForm" fxLayoutAlign="space-between stretch" fxLayout="column" (submit)="onSendPayment()" (reset)="resetData()">
-        <ng-container *ngTemplateOutlet="paymentType === paymentTypes.KEYSEND ? keysendBlock : paymentType === paymentTypes.OFFER ? offerBlock : invoiceBlock" />
+        <ng-container *ngTemplateOutlet="paymentType === paymentTypes.SIDEFLASH ? sideflashBlock : paymentType === paymentTypes.KEYSEND ? keysendBlock : paymentType === paymentTypes.OFFER ? offerBlock : invoiceBlock" />
         <div *ngIf="paymentError !== ''" fxFlex="100" class="alert alert-danger mt-1">
           <fa-icon class="mr-1 alert-icon" [icon]="faExclamationTriangle" />
           <span *ngIf="paymentError !== ''">{{paymentError}}</span>
         </div>
         <div class="mt-2" fxLayout="row" fxLayoutAlign="end center">
-          <button class="mr-1" mat-button color="primary" tabindex="9" type="reset">Clear Fields</button>
-          <button mat-button color="primary" type="submit" tabindex="8">Send Payment</button>
+          <button class="mr-1" mat-button color="primary" tabindex="9" type="reset" [disabled]="sideflashBusy">Clear Fields</button>
+          <button mat-button color="primary" type="submit" tabindex="8" [disabled]="sideflashBusy">{{ paymentType === paymentTypes.SIDEFLASH && !sideflashPreview ? 'Verify address' : 'Send Payment' }}</button>
         </div>
       </form>
     </mat-card-content>
@@ -98,4 +99,28 @@
     <mat-label>Title to Save</mat-label>
     <input matInput tabindex="7" [(ngModel)]="offerTitle">
   </mat-form-field>
+</ng-template>
+
+<ng-template #sideflashBlock>
+  <p>Pay a Sideflash address over Lightning. CLN verifies its signatures against your configured ASP key. The recipient may receive an Ark balance after their server's fees.</p>
+  <mat-form-field fxLayout="column" fxFlex="100">
+    <mat-label>Sideflash address</mat-label>
+    <textarea matInput name="sideflashAddress" rows="4" maxlength="1023" required [disabled]="sideflashBusy" [(ngModel)]="sideflashAddress" (ngModelChange)="onSideflashChange()"></textarea>
+  </mat-form-field>
+  <mat-form-field fxLayout="column" fxFlex="100">
+    <mat-label>Amount (sats)</mat-label>
+    <input matInput name="sideflashAmount" type="number" min="1" step="1" required [disabled]="sideflashBusy" [(ngModel)]="sideflashAmount">
+  </mat-form-field>
+  <mat-form-field fxLayout="column" fxFlex="100">
+    <mat-label>Maximum routing fee (sats)</mat-label>
+    <input matInput name="sideflashFee" type="number" min="0" step="1" required [disabled]="sideflashBusy" [(ngModel)]="sideflashFee">
+  </mat-form-field>
+  <div *ngIf="sideflashPreview" class="alert alert-info mt-1">
+    <strong>Address verified</strong>
+    <p>{{sideflashPreview.description}}</p>
+    <p>Send {{sideflashAmount | number}} sats, with at most {{sideflashFee | number}} sats in routing fees.</p>
+    <p>Expires {{sideflashPreview.expires * 1000 | date:'medium'}}.</p>
+    <details><summary>Verified server key</summary><code style="overflow-wrap:anywhere">{{sideflashPreview.server_pubkey}}</code></details>
+  </div>
+  <p class="mt-1">If a response is lost, retry with the same address, amount and fee to reuse the saved payment ID. Lightning settlement alone does not prove delivery into Ark.</p>
 </ng-template>

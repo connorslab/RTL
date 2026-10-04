@@ -88,7 +88,39 @@ export const listPayments = (req, res, next) => {
   });
 };
 
+// Deliberately narrow parameters: CLN verifies the binding and performs fee-capped payment.
+export const sideflashPayBody = (body: any) => {
+  if (typeof body.bolt11 !== 'string' || !(/^sfl1/i).test(body.bolt11) || body.bolt11.length > 1023 ||
+    !Number.isSafeInteger(body.amount_msat) || body.amount_msat <= 0 ||
+    !Number.isSafeInteger(body.maxfee) || body.maxfee < 0 ||
+    typeof body.label !== 'string' || !(/^[A-Za-z0-9_-]{1,64}$/).test(body.label)) {
+    throw new Error('Sideflash requires an address, positive integer millisat amount, explicit fee cap and stable payment label.');
+  }
+  return { bolt11: body.bolt11, amount_msat: body.amount_msat, maxfee: body.maxfee, label: body.label };
+};
+
+const postSideflashPayment = (req, res) => {
+  const sideflashOptions = common.getOptions(req);
+  if (sideflashOptions.error) { return res.status(sideflashOptions.statusCode).json({ message: sideflashOptions.message, error: sideflashOptions.error }); }
+  try {
+    sideflashOptions.body = sideflashPayBody(req.body);
+  } catch (err) {
+    return res.status(400).json({ message: err.message, error: err.message });
+  }
+  sideflashOptions.url = req.session.selectedNode.settings.lnServerUrl + '/v1/pay';
+  return request.post(sideflashOptions).then((body) => {
+    if (body.status !== 'complete' || typeof body.payment_hash !== 'string') {
+      return res.status(502).json({ message: 'Payment is not confirmed complete. Retry with the same saved payment ID.', error: 'Unresolved Sideflash payment' });
+    }
+    return res.status(201).json({ paymentResponse: body, saveToDBResponse: 'NA' });
+  }).catch((errRes) => {
+    const err = common.handleError(errRes, 'Payments', 'Sideflash Payment Error', req.session.selectedNode);
+    return res.status(err.statusCode).json({ message: err.message, error: err.error });
+  });
+};
+
 export const postPayment = (req, res, next) => {
+  if (req.body.paymentType === 'SIDEFLASH') { return postSideflashPayment(req, res); }
   const { paymentType, saveToDB, bolt12, zeroAmtOffer, amount_msat, title, issuer, description } = req.body;
   options = common.getOptions(req);
   if (options.error) { return res.status(options.statusCode).json({ message: options.message, error: options.error }); }

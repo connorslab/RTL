@@ -387,6 +387,7 @@ export const UI_MESSAGES = {
 export enum PaymentTypes {
   INVOICE = 'INVOICE',
   OFFER = 'OFFER',
+  SIDEFLASH = 'SIDEFLASH',
   KEYSEND = 'KEYSEND'
 }
 

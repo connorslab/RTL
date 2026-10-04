@@ -3,6 +3,10 @@
 This document collects the changes that go into the 0.15.12 release. Each PR merged for
 this release should add its entry under the appropriate section below.
 
+## Experimental branch additions
+
+- Sideflash CLN payments: verified address review, explicit routing-fee cap, persisted retry labels, and completion checks. Requires the matching CLN plugin.
+
 ## Bug Fixes
 
 - **Eclair: invoices are paged instead of fetched whole**

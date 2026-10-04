@@ -1,4 +1,10 @@
 ## Ride The Lightning (RTL)
+
+**Experimental Sideflash branch:** the CLN Send Payment dialog includes a
+Sideflash option. Verify an `sfl1` address, review the amount and maximum routing
+fee, then send. Requires the Sideflash-enabled CLN test plugin and a configured
+trusted ASP key; see [Sideflash setup](../docs/sideflash.md). This is not an
+upstream RTL release.
 ![](./screenshots/RTL-LND-Dashboard.png)
 
 <a href="https://snyk.io/test/github/Ride-The-Lightning/RTL"><img src="https://snyk.io/test/github/Ride-The-Lightning/RTL/badge.svg" alt="Known Vulnerabilities" data-canonical-src="https://snyk.io/test/github/Ride-The-Lightning/RTL" style="max-width:100%;"></a>
